@@ -31,11 +31,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             archive: zip
             artifact: vision-mcp.exe
-          - os: macos-14          # Apple Silicon runner
+          - os: macos-14          # Apple Silicon runner — builds both arm64 and x86_64
             target: aarch64-apple-darwin
             archive: tar.gz
             artifact: vision-mcp
-          - os: macos-13          # Intel runner
+          - os: macos-14          # cross-compile x86_64 from Apple Silicon (Intel runners are deprecated)
             target: x86_64-apple-darwin
             archive: tar.gz
             artifact: vision-mcp
