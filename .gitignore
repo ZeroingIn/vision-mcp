@@ -1,0 +1,33 @@
+# --- Rust / Cargo ---
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# --- Build outputs (never ship binaries or DLLs from the repo) ---
+*.exe
+*.dll
+*.pdb
+*.lib
+*.exp
+libunwind.dll
+
+# --- Local configuration (contains API keys — MUST NOT be committed) ---
+config.toml
+/.env
+.env.*
+!.env.example
+
+# --- Per-host toolchain config (machine-specific, not portable) ---
+/.cargo/config.toml
+
+# --- Editor / OS cruft ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Logs / temp ---
+*.log
+/tmp/

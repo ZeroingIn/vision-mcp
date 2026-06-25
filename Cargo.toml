@@ -1,0 +1,74 @@
+[package]
+name = "vision-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "A multimodal vision proxy MCP server + CLI for text-only LLM agents"
+license = "Apache-2.0"
+
+[lib]
+name = "vision_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vision-mcp"
+path = "src/main.rs"
+
+[dependencies]
+rmcp = { version = "1.8", features = [
+    "server",
+    "macros",
+    "schemars",
+    "transport-io",
+    "transport-streamable-http-server",
+] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+# `genai` replaces the hand-rolled OpenAI/Anthropic HTTP adapters: it provides
+# a single unified Client that supports OpenAI Vision / Anthropic Vision /
+# Gemini Vision with one-line model switching. Vision content is built via
+# `ContentPart::from_binary_base64` / `from_binary_url`; the active provider is
+# selected through a `ServiceTargetResolver` closure injected into the Client.
+#
+# We disable genai's default `rustls-tls` feature because it enables
+# `reqwest/rustls`, which (via feature unification) pulls in `aws-lc-rs` — a C
+# library needing CMake + NASM that breaks cross-compilation. Instead we inject
+# our own reqwest::Client (built with `rustls-no-provider` + an explicit `ring`
+# CryptoProvider) via `ClientBuilder::with_reqwest`. genai never builds its own
+# HTTP client, so its TLS feature choice is irrelevant at runtime.
+genai = { version = "0.6", default-features = false }
+# Pin reqwest to the same major version genai uses (0.13) so we can share one
+# reqwest::Client between genai and our own image-URL downloader.
+#
+# TLS backend: we use `rustls-no-provider` (NOT the default `rustls`, which
+# pulls in `aws-lc-rs`) and explicitly enable `ring` on the `rustls` crate.
+# `aws-lc-rs` requires CMake + a C compiler + NASM (Windows) to build, which
+# breaks cross-compilation to macOS/Linux from non-native hosts. `ring` ships
+# prebuilt assembly / fallback C that compiles on every target with just a C
+# toolchain — no CMake, no NASM — so the whole project stays pure-Rust-buildable
+# across Windows MSVC, macOS (arm64 + x86_64), and Linux (glibc + musl).
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider", "json", "stream", "http2", "charset", "system-proxy",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-platform-verifier = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+base64 = "0.22"
+schemars = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+infer = "0.16"
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

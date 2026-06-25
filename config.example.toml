@@ -1,0 +1,61 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# vision-mcp example configuration.
+#
+# 1. Copy this file to `config.toml` next to the `vision-mcp.exe`:
+#       copy config.example.toml config.toml
+# 2. Edit `config.toml` and fill in YOUR real `api_key` and endpoint.
+# 3. NEVER commit your real `config.toml` — it is git-ignored by default.
+#    If you need to share config, share this example, not your real file.
+#
+# Any value below can ALSO be provided via an environment variable (VMCP_*),
+# which takes precedence over the file. See README.md → "Configuration".
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Name of the profile to use. Select with this key, the VMCP_ACTIVE env var,
+# or the --profile CLI flag.
+active = "default"
+
+# ── Profile: an OpenAI-compatible Chat Completions endpoint ──────────────────
+# Works with: OpenAI, Azure OpenAI, Kimi, DeepSeek, Qwen-VL, Ollama (vision),
+# vLLM, LocalAI, any server exposing /v1/chat/completions with image support.
+[profiles.default]
+provider = "openai"
+# Base URL up to and including the API version path. A trailing "/" is fine;
+# vision-mcp normalizes it. Do NOT append /chat/completions here.
+base_url = "https://api.openai.com/v1"
+# Your secret API key. Leave empty here and set VMCP_API_KEY in the environment
+# instead (recommended for CI / shared machines — see README).
+api_key = "sk-YOUR-API-KEY-HERE"
+# Model id as the provider expects it in the "model" field.
+model = "gpt-4o"
+# Maximum output tokens per response.
+max_tokens = 1024
+# OpenAI image detail hint: "low" | "high" | "auto". Ignored by Anthropic.
+detail = "auto"
+# Per-request timeout, in seconds.
+timeout_secs = 60
+
+# ── Profile: Anthropic (Claude) ───────────────────────────────────────────────
+# Uncomment and edit to use Claude's vision models. provider="anthropic" routes
+# through genai's Anthropic adapter (Messages API at /v1/messages).
+#
+# [profiles.claude]
+# provider = "anthropic"
+# base_url = "https://api.anthropic.com/v1"
+# api_key = "sk-ant-YOUR-ANTHROPIC-KEY-HERE"
+# model = "claude-3-5-sonnet-latest"
+# max_tokens = 1024
+# timeout_secs = 60
+
+# ── Profile: auto-detect provider from base_url ───────────────────────────────
+# provider = "auto" inspects base_url: anything containing "anthropic.com" or
+# "/v1/messages" is treated as Anthropic; everything else as OpenAI-compatible.
+#
+# [profiles.gateway]
+# provider = "auto"
+# base_url = "http://192.168.1.50:8000/v1"
+# api_key = "sk-YOUR-GATEWAY-KEY-HERE"
+# model = "your-model-name"
+# max_tokens = 1024
+# detail = "auto"
+# timeout_secs = 60

@@ -1,0 +1,107 @@
+name: build
+
+# Builds release binaries for Windows (MSVC, x86_64), macOS (arm64 + x86_64),
+# and Linux (x86_64 glibc + aarch64 musl). Uploads each as a release asset.
+#
+# The TLS backend is `rustls` with the `ring` provider (no `aws-lc-rs`), so the
+# whole project builds with just `rustc` + a C toolchain on every target — no
+# CMake, no NASM, no OpenSSL. See README.md → "Build" and Cargo.toml TLS notes.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release to upload assets
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            artifact: vision-mcp.exe
+          - os: macos-14          # Apple Silicon runner
+            target: aarch64-apple-darwin
+            archive: tar.gz
+            artifact: vision-mcp
+          - os: macos-13          # Intel runner
+            target: x86_64-apple-darwin
+            archive: tar.gz
+            artifact: vision-mcp
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            artifact: vision-mcp
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            archive: tar.gz
+            artifact: vision-mcp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross toolchain (Linux aarch64 musl)
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools aarch64-linux-gnu-gcc
+          echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Run tests (native target only)
+        if: matrix.target == 'x86_64-pc-windows-msvc' || matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo test --release --locked --target ${{ matrix.target }}
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="vision-mcp-${GITHUB_REF_NAME:-dev}-${{ matrix.target }}"
+          mkdir -p "$STAGE"
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "$STAGE/"
+          cp README.md LICENSE config.example.toml "$STAGE/"
+          # Bundle a portable .cargo/config.toml note for Windows MSVC single-file
+          # builds (crt-static); other platforms need no per-machine config.
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
+            mkdir -p "$STAGE/.cargo"
+            printf '[target.x86_64-pc-windows-msvc]\nrustflags = ["-C", "target-feature=+crt-static"]\n' > "$STAGE/.cargo/config.toml"
+          fi
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "$STAGE.zip" "$STAGE"
+            echo "ASSET=$STAGE.zip" >> $GITHUB_ENV
+          else
+            tar czf "$STAGE.tar.gz" "$STAGE"
+            echo "ASSET=$STAGE.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-mcp-${{ matrix.target }}
+          path: vision-mcp-*-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          fail_on_unmatched_files: true
